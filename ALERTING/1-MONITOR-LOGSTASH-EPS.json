@@ -1,0 +1,119 @@
+{
+    "trigger": {
+      "schedule": {
+        "interval": "30m"
+      }
+    },
+    "input": {
+      "search": {
+        "request": {
+          "search_type": "query_then_fetch",
+          "indices": [
+            ".monitoring-logstash-*"
+          ],
+          "rest_total_hits_as_int": true,
+          "body": {
+            "_source": [
+              "@timestamp",
+              "logstash_stats.events.in",
+              "logstash_stats.logstash.host"
+            ],
+            "size": 0,
+            "query": {
+              "bool": {
+                "filter": [
+                  {
+                    "term": {
+                      "logstash_stats.logstash.host": "totodevice"
+                    }
+                  },
+                  {
+                    "range": {
+                      "timestamp": {
+                        "lte": "now",
+                        "gt": "now-30m",
+                        "time_zone": "Europe/Paris"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            "aggs": {
+              "bydate": {
+                "date_histogram": {
+                  "field": "timestamp",
+                  "interval": "1m"
+                },
+                "aggs": {
+                  "avg": {
+                    "avg": {
+                      "field": "logstash_stats.events.in"
+                    }
+                  },
+                  "eps": {
+                    "derivative": {
+                      "buckets_path": "avg"
+                    }
+                  },
+                  "by10": {
+                    "bucket_script": {
+                      "buckets_path": {
+                        "my_var1": "eps"
+                      },
+                      "script": "params.my_var1/60"
+                    }
+                  }
+                }
+              },
+              "avg_buck": {
+                "avg_bucket": {
+                  "buckets_path": "bydate>eps",
+                  "gap_policy": "skip"
+                }
+              },
+              "perc_buck": {
+                "percentiles_bucket": {
+                  "keyed": false,
+                  "buckets_path": "bydate>by10",
+                  "percents": [
+                    50
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "condition": {
+      "compare": {
+        "ctx.payload.aggregations.perc_buck.values.0.value": {
+          "gte": 3000
+        }
+      }
+    },
+    "actions": {
+      "email_administrator": {
+        "email": {
+          "profile": "standard",
+          "attachments": {
+            "attached_data": {
+              "data": {
+                "format": "json"
+              }
+            }
+          },
+          "priority": "high",
+          "to": [
+            "hackim@test.com"
+        
+          ],
+          "subject": "[LOGSTASH][EPS]",
+          "body": {
+            "text": "Becareful {{ctx.payload.aggregations.perc_buck.values.0.value}} EPS Detected. on host TOTODEVICE"
+          }
+        }
+      }
+    }
+  }
