@@ -7,7 +7,6 @@ The alerts can involve monitoring the Elastic infrastructure ⚙️, searching f
 
 ## 🧐 1 MONITORING LOGSTASH EPS
 
-
 ### Description
 
 - This watcher will monitor the number of events per second (EPS) that Logstash ingests and processes ⚙️📊.
